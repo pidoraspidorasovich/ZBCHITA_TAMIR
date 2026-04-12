@@ -1,0 +1,233 @@
+CREATE DATABASE УправлениеРестораном;
+GO
+
+USE УправлениеРестораном;
+GO
+
+SET NOCOUNT ON;
+GO
+
+IF OBJECT_ID(N'dbo.ВьюПрибыльПоЗаказам', N'V') IS NOT NULL DROP VIEW dbo.ВьюПрибыльПоЗаказам;
+GO
+
+IF OBJECT_ID(N'dbo.ПозицииЗаказа', N'U') IS NOT NULL DROP TABLE dbo.ПозицииЗаказа;
+IF OBJECT_ID(N'dbo.Заказы', N'U') IS NOT NULL DROP TABLE dbo.Заказы;
+IF OBJECT_ID(N'dbo.Брони', N'U') IS NOT NULL DROP TABLE dbo.Брони;
+IF OBJECT_ID(N'dbo.Блюда', N'U') IS NOT NULL DROP TABLE dbo.Блюда;
+IF OBJECT_ID(N'dbo.Столики', N'U') IS NOT NULL DROP TABLE dbo.Столики;
+IF OBJECT_ID(N'dbo.Клиенты', N'U') IS NOT NULL DROP TABLE dbo.Клиенты;
+GO
+
+CREATE TABLE dbo.Клиенты
+(
+    ИдКлиента INT IDENTITY(1,1) PRIMARY KEY,
+    ФИО NVARCHAR(120) NOT NULL,
+    Телефон NVARCHAR(30) NOT NULL,
+    Заметка NVARCHAR(400) NULL,
+    ДатаСоздания DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+);
+GO
+
+CREATE TABLE dbo.Столики
+(
+    ИдСтолика INT IDENTITY(1,1) PRIMARY KEY,
+    НомерСтолика INT NOT NULL UNIQUE,
+    Вместимость INT NOT NULL,
+    Статус NVARCHAR(20) NOT NULL,
+    ЗанятоМест INT NOT NULL DEFAULT 0,
+    ВремяСтатуса DATETIME2 NULL,
+    ВремяБрони DATETIME2 NULL,
+    CONSTRAINT Ограничение_Столики_Вместимость CHECK (Вместимость > 0),
+    CONSTRAINT Ограничение_Столики_Статус CHECK (Статус IN (N'Свободен', N'Занят', N'Забронирован')),
+    CONSTRAINT Ограничение_Столики_ЗанятоМест CHECK (ЗанятоМест >= 0 AND ЗанятоМест <= Вместимость)
+);
+GO
+
+CREATE TABLE dbo.Блюда
+(
+    ИдБлюда INT IDENTITY(1,1) PRIMARY KEY,
+    Название NVARCHAR(150) NOT NULL UNIQUE,
+    Категория NVARCHAR(30) NOT NULL,
+    Цена DECIMAL(10,2) NOT NULL,
+    Себестоимость DECIMAL(10,2) NOT NULL,
+    Доступно BIT NOT NULL DEFAULT 1,
+    ДатаСоздания DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT Ограничение_Блюда_Категория CHECK (Категория IN (N'Супы', N'Салаты', N'Горячее', N'Десерты', N'Напитки')),
+    CONSTRAINT Ограничение_Блюда_Цена CHECK (Цена > 0),
+    CONSTRAINT Ограничение_Блюда_Себестоимость CHECK (Себестоимость >= 0)
+);
+GO
+
+CREATE TABLE dbo.Брони
+(
+    ИдБрони INT IDENTITY(1,1) PRIMARY KEY,
+    ИдКлиента INT NOT NULL,
+    ИдСтолика INT NULL,
+    ДатаБрони DATE NOT NULL,
+    ВремяБрони TIME NOT NULL,
+    КоличествоГостей INT NOT NULL,
+    Предпочтение NVARCHAR(200) NULL,
+    Комментарий NVARCHAR(500) NULL,
+    Статус NVARCHAR(20) NOT NULL,
+    ДатаСоздания DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT ВнешнийКлюч_Брони_Клиенты FOREIGN KEY (ИдКлиента) REFERENCES dbo.Клиенты(ИдКлиента),
+    CONSTRAINT ВнешнийКлюч_Брони_Столики FOREIGN KEY (ИдСтолика) REFERENCES dbo.Столики(ИдСтолика),
+    CONSTRAINT Ограничение_Брони_КоличествоГостей CHECK (КоличествоГостей > 0),
+    CONSTRAINT Ограничение_Брони_Статус CHECK (Статус IN (N'Новая', N'Подтверждена', N'Отменена'))
+);
+GO
+
+CREATE TABLE dbo.Заказы
+(
+    ИдЗаказа INT IDENTITY(1,1) PRIMARY KEY,
+    ИдСтолика INT NOT NULL,
+    ИдБрони INT NULL,
+    ИдКлиента INT NULL,
+    Статус NVARCHAR(20) NOT NULL,
+    Комментарий NVARCHAR(400) NULL,
+    ДатаСоздания DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    ДатаЗакрытия DATETIME2 NULL,
+    CONSTRAINT ВнешнийКлюч_Заказы_Столики FOREIGN KEY (ИдСтолика) REFERENCES dbo.Столики(ИдСтолика),
+    CONSTRAINT ВнешнийКлюч_Заказы_Брони FOREIGN KEY (ИдБрони) REFERENCES dbo.Брони(ИдБрони),
+    CONSTRAINT ВнешнийКлюч_Заказы_Клиенты FOREIGN KEY (ИдКлиента) REFERENCES dbo.Клиенты(ИдКлиента),
+    CONSTRAINT Ограничение_Заказы_Статус CHECK (Статус IN (N'Готовится', N'Готов', N'Завершён', N'Отменён'))
+);
+GO
+
+CREATE TABLE dbo.ПозицииЗаказа
+(
+    ИдПозицииЗаказа INT IDENTITY(1,1) PRIMARY KEY,
+    ИдЗаказа INT NOT NULL,
+    ИдБлюда INT NOT NULL,
+    Количество INT NOT NULL,
+    ЦенаЗаЕдиницу DECIMAL(10,2) NOT NULL,
+    СебестоимостьЗаЕдиницу DECIMAL(10,2) NOT NULL,
+    CONSTRAINT ВнешнийКлюч_ПозицииЗаказа_Заказы FOREIGN KEY (ИдЗаказа) REFERENCES dbo.Заказы(ИдЗаказа) ON DELETE CASCADE,
+    CONSTRAINT ВнешнийКлюч_ПозицииЗаказа_Блюда FOREIGN KEY (ИдБлюда) REFERENCES dbo.Блюда(ИдБлюда),
+    CONSTRAINT Ограничение_ПозицииЗаказа_Количество CHECK (Количество > 0),
+    CONSTRAINT Ограничение_ПозицииЗаказа_Цена CHECK (ЦенаЗаЕдиницу > 0),
+    CONSTRAINT Ограничение_ПозицииЗаказа_Себестоимость CHECK (СебестоимостьЗаЕдиницу >= 0)
+);
+GO
+
+CREATE INDEX Индекс_Брони_ДатаВремя ON dbo.Брони(ДатаБрони, ВремяБрони);
+CREATE INDEX Индекс_Заказы_СтатусДата ON dbo.Заказы(Статус, ДатаСоздания DESC);
+CREATE INDEX Индекс_ПозицииЗаказа_Заказ ON dbo.ПозицииЗаказа(ИдЗаказа);
+GO
+
+INSERT INTO dbo.Столики (НомерСтолика, Вместимость, Статус, ЗанятоМест, ВремяСтатуса, ВремяБрони)
+VALUES
+(1, 2, N'Занят', 2, DATEADD(MINUTE, -40, SYSDATETIME()), NULL),
+(2, 4, N'Свободен', 0, NULL, NULL),
+(3, 4, N'Занят', 3, DATEADD(MINUTE, -25, SYSDATETIME()), NULL),
+(4, 2, N'Свободен', 0, NULL, NULL),
+(5, 6, N'Занят', 5, DATEADD(MINUTE, -75, SYSDATETIME()), NULL),
+(6, 4, N'Забронирован', 0, NULL, DATEADD(MINUTE, 45, SYSDATETIME())),
+(7, 2, N'Свободен', 0, NULL, NULL),
+(8, 8, N'Занят', 6, DATEADD(MINUTE, -50, SYSDATETIME()), NULL),
+(9, 4, N'Свободен', 0, NULL, NULL),
+(10, 2, N'Свободен', 0, NULL, NULL),
+(11, 6, N'Свободен', 0, NULL, NULL),
+(12, 4, N'Занят', 4, DATEADD(MINUTE, -15, SYSDATETIME()), NULL),
+(13, 2, N'Забронирован', 0, NULL, DATEADD(HOUR, 1, SYSDATETIME())),
+(14, 4, N'Свободен', 0, NULL, NULL),
+(15, 6, N'Свободен', 0, NULL, NULL);
+GO
+
+INSERT INTO dbo.Блюда (Название, Категория, Цена, Себестоимость, Доступно)
+VALUES
+(N'Борщ украинский', N'Супы', 350, 120, 1),
+(N'Том ям', N'Супы', 420, 170, 1),
+(N'Крем-суп грибной', N'Супы', 320, 110, 1),
+(N'Солянка мясная', N'Супы', 390, 145, 1),
+(N'Цезарь с курицей', N'Салаты', 450, 170, 1),
+(N'Греческий салат', N'Салаты', 390, 150, 1),
+(N'Салат с ростбифом', N'Салаты', 520, 230, 1),
+(N'Оливье с языком', N'Салаты', 430, 185, 1),
+(N'Паста карбонара', N'Горячее', 550, 210, 1),
+(N'Стейк рибай', N'Горячее', 1800, 980, 1),
+(N'Филе судака', N'Горячее', 740, 330, 1),
+(N'Курица терияки', N'Горячее', 610, 250, 1),
+(N'Бефстроганов', N'Горячее', 690, 310, 1),
+(N'Бургер фирменный', N'Горячее', 560, 240, 1),
+(N'Картофель по-деревенски', N'Горячее', 220, 75, 1),
+(N'Тирамису', N'Десерты', 380, 140, 1),
+(N'Чизкейк', N'Десерты', 350, 130, 1),
+(N'Медовик', N'Десерты', 340, 120, 1),
+(N'Фирменный чай', N'Напитки', 220, 60, 1),
+(N'Лимонад облепиха', N'Напитки', 260, 70, 1),
+(N'Морс клюквенный', N'Напитки', 180, 45, 1),
+(N'Капучино', N'Напитки', 210, 55, 1);
+GO
+
+INSERT INTO dbo.Клиенты (ФИО, Телефон, Заметка)
+VALUES
+(N'Алексей Петров', N'+7 (999) 123-45-67', N'Любит стол у окна'),
+(N'Мария Соколова', N'+7 (921) 555-10-20', N'Иногда просит детский стул'),
+(N'Игорь Данилов', N'+7 (903) 700-12-12', N'Обычно приходит большой компанией'),
+(N'Екатерина Миронова', N'+7 (916) 400-31-20', N'Частый гость по пятницам'),
+(N'Дмитрий Волков', N'+7 (905) 222-16-88', N'Просит тихую зону'),
+(N'Ольга Самойлова', N'+7 (915) 777-44-11', NULL),
+(N'Кирилл Жуков', N'+7 (926) 888-11-09', NULL),
+(N'Анна Белова', N'+7 (903) 150-42-00', N'Аллергия на острое');
+GO
+
+INSERT INTO dbo.Брони (ИдКлиента, ИдСтолика, ДатаБрони, ВремяБрони, КоличествоГостей, Предпочтение, Комментарий, Статус, ДатаСоздания)
+VALUES
+(1, 6, CAST(GETDATE() AS DATE), '19:30', 4, N'У окна', N'День рождения, нужен тихий стол', N'Подтверждена', DATEADD(HOUR, -3, SYSDATETIME())),
+(2, 4, CAST(GETDATE() AS DATE), '20:00', 2, N'Спокойная зона', N'Нужен детский стул', N'Новая', DATEADD(HOUR, -2, SYSDATETIME())),
+(3, 15, CAST(GETDATE() AS DATE), '21:15', 6, N'Большой стол', N'Позвонить за час', N'Отменена', DATEADD(HOUR, -1, SYSDATETIME())),
+(4, 13, DATEADD(DAY, 1, CAST(GETDATE() AS DATE)), '18:30', 2, N'У окна', N'Романтический ужин', N'Подтверждена', DATEADD(HOUR, -5, SYSDATETIME())),
+(5, 11, DATEADD(DAY, 1, CAST(GETDATE() AS DATE)), '20:30', 5, N'Поближе к сцене', N'Корпоративный ужин', N'Новая', DATEADD(HOUR, -4, SYSDATETIME()));
+GO
+
+INSERT INTO dbo.Заказы (ИдСтолика, ИдБрони, ИдКлиента, Статус, Комментарий, ДатаСоздания, ДатаЗакрытия)
+VALUES
+(5, NULL, NULL, N'Готовится', N'Без лука', DATEADD(MINUTE, -15, SYSDATETIME()), NULL),
+(12, NULL, NULL, N'Готовится', N'Подать всё вместе', DATEADD(MINUTE, -8, SYSDATETIME()), NULL),
+(3, NULL, NULL, N'Готов', N'Без перца', DATEADD(MINUTE, -5, SYSDATETIME()), NULL),
+(4, NULL, 6, N'Завершён', NULL, DATEADD(HOUR, -5, SYSDATETIME()), DATEADD(HOUR, -4, SYSDATETIME())),
+(2, NULL, 5, N'Завершён', NULL, DATEADD(DAY, -1, DATEADD(HOUR, 14, CAST(GETDATE() AS DATETIME2))), DATEADD(DAY, -1, DATEADD(HOUR, 15, CAST(GETDATE() AS DATETIME2)))),
+(10, NULL, 7, N'Завершён', NULL, DATEADD(DAY, -2, DATEADD(HOUR, 13, CAST(GETDATE() AS DATETIME2))), DATEADD(DAY, -2, DATEADD(HOUR, 14, CAST(GETDATE() AS DATETIME2)))),
+(9, NULL, 8, N'Отменён', N'Отмена по просьбе гостя', DATEADD(HOUR, -2, SYSDATETIME()), DATEADD(HOUR, -1, SYSDATETIME()));
+GO
+
+INSERT INTO dbo.ПозицииЗаказа (ИдЗаказа, ИдБлюда, Количество, ЦенаЗаЕдиницу, СебестоимостьЗаЕдиницу)
+VALUES
+(1, 1, 1, 350, 120),
+(1, 10, 1, 1800, 980),
+(1, 16, 1, 380, 140),
+(2, 5, 2, 450, 170),
+(2, 9, 1, 550, 210),
+(3, 2, 1, 420, 170),
+(3, 17, 2, 350, 130),
+(4, 9, 2, 550, 210),
+(4, 19, 2, 220, 60),
+(5, 5, 2, 450, 170),
+(5, 16, 2, 380, 140),
+(6, 10, 1, 1800, 980),
+(6, 19, 2, 220, 60),
+(7, 5, 2, 450, 170),
+(7, 17, 1, 350, 130);
+GO
+
+CREATE VIEW dbo.ВьюПрибыльПоЗаказам
+AS
+SELECT
+    з.ИдЗаказа,
+    с.НомерСтолика,
+    з.Статус,
+    з.ДатаСоздания,
+    з.ДатаЗакрытия,
+    SUM(п.Количество * п.ЦенаЗаЕдиницу) AS Выручка,
+    SUM(п.Количество * п.СебестоимостьЗаЕдиницу) AS Себестоимость,
+    SUM(п.Количество * п.ЦенаЗаЕдиницу) - SUM(п.Количество * п.СебестоимостьЗаЕдиницу) AS Прибыль
+FROM dbo.Заказы з
+INNER JOIN dbo.Столики с ON с.ИдСтолика = з.ИдСтолика
+INNER JOIN dbo.ПозицииЗаказа п ON п.ИдЗаказа = з.ИдЗаказа
+GROUP BY
+    з.ИдЗаказа,
+    с.НомерСтолика,
+    з.Статус,
+    з.ДатаСоздания,
+    з.ДатаЗакрытия;
